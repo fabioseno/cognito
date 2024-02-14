@@ -17,6 +17,17 @@ export class InfraStack extends cdk.Stack {
         requireDigits: true,
         requireSymbols: false,
       },
+      signInAliases: {
+        email: true,
+      },
+      customAttributes: {
+        age: new cognito.NumberAttribute({
+          min: 0,
+          max: 120,
+        }),
+        phone: new cognito.StringAttribute(),
+        pushToken: new cognito.StringAttribute(),
+      },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -27,15 +38,6 @@ export class InfraStack extends cdk.Stack {
         adminUserPassword: true,
         userPassword: true,
       },
-
-      // oAuth: {
-      //   flows: {
-      //     authorizationCodeGrant: true,
-      //   },
-      // scopes: [cognito.OAuthScope.OPENID],
-      // callbackUrls: ['https://my-app-domain.com/welcome'],
-      // logoutUrls: ['https://my-app-domain.com/signin'],
-      // },
     });
   }
 }

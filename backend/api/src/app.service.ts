@@ -1,28 +1,34 @@
 import {
+  AdminGetUserCommand,
   AdminInitiateAuthCommand,
+  AdminSetUserPasswordCommand,
+  AdminUpdateUserAttributesCommand,
   AuthFlowType,
   ChangePasswordCommand,
   CognitoIdentityProviderClient,
   ForgotPasswordCommand,
+  GetUserCommand,
   RespondToAuthChallengeCommand
 } from "@aws-sdk/client-cognito-identity-provider";
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from "@nestjs/config";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
+import { AdminUpdateUser } from "./interfaces";
 
 @Injectable()
 export class AppService {
 
-  private userPoolId = process.env.COGNITO_USER_POOL_ID;
-  private clientId = process.env.COGNITO_CLIENT_ID;
+  private userPoolId = this.configService.get('COGNITO_USER_POOL_ID');
+  private clientId = this.configService.get('COGNITO_CLIENT_ID');
   private cognitoClient: CognitoIdentityProviderClient;
   private credentials = {
-    accessKeyId: process.env.ACCESS_KEY_ID,
-    secretAccessKey: process.env.SECRET_ACCESS_KEY,
+    accessKeyId: this.configService.get('ACCESS_KEY_ID'),
+    secretAccessKey: this.configService.get('SECRET_ACCESS_KEY'),
   }
 
-  constructor() {
+  constructor(private configService: ConfigService) {
     this.cognitoClient = new CognitoIdentityProviderClient({
-      region: process.env.REGION,
+      region: this.configService.get('REGION'),
       credentials: this.credentials
     });
   }
@@ -38,15 +44,14 @@ export class AppService {
       UserPoolId: this.userPoolId,
     });
 
-    return this.cognitoClient.send(command);
+    return this.cognitoClient.send(command).catch(error => {
+      if (error.name === 'NotAuthorizedException') {
+        throw new UnauthorizedException();
+      }
+    });
   }
 
   refreshAccessToken(refreshToken: string) {
-    const client = new CognitoIdentityProviderClient({
-      region: process.env.REGION,
-      credentials: this.credentials,
-    });
-
     const command = new AdminInitiateAuthCommand({
 
       AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
@@ -61,8 +66,6 @@ export class AppService {
   }
 
   confirmPassword(username: string, password: string, session: string) {
-    const client = new CognitoIdentityProviderClient({});
-
     const command = new RespondToAuthChallengeCommand({
       ChallengeName: 'NEW_PASSWORD_REQUIRED',
       ClientId: this.clientId,
@@ -77,8 +80,6 @@ export class AppService {
   }
 
   forgotPassword(username: string) {
-    const client = new CognitoIdentityProviderClient({});
-
     const command = new ForgotPasswordCommand({
       ClientId: this.clientId,
       Username: username
@@ -88,8 +89,6 @@ export class AppService {
   }
 
   changePassword(accessToken: string, oldPassword: string, newPassword: string) {
-    const client = new CognitoIdentityProviderClient({});
-
     const command = new ChangePasswordCommand({
       PreviousPassword: oldPassword,
       ProposedPassword: newPassword,
@@ -99,7 +98,7 @@ export class AppService {
     return this.cognitoClient.send(command);
   }
 
-  async validateAccessToken(accessToken: string) {
+  validateAccessToken(accessToken: string) {
     const verifier = CognitoJwtVerifier.create({
       userPoolId: this.userPoolId,
       tokenUse: "access",
@@ -107,5 +106,55 @@ export class AppService {
     });
 
     return verifier.verify(accessToken);
+  }
+
+  getUser(accessToken: string) {
+    const command = new GetUserCommand({
+      AccessToken: accessToken
+    });
+    return this.cognitoClient.send(command);
+  }
+
+  // admin endpoints
+  adminGetUser(username: string) {
+    const command = new AdminGetUserCommand({
+      Username: username,
+      UserPoolId: this.userPoolId
+    });
+    return this.cognitoClient.send(command);
+  }
+
+  adminSetUserPassword(username: string, password: string) {
+    const command = new AdminSetUserPasswordCommand({
+      UserPoolId: this.userPoolId,
+      Username: username,
+      Password: password,
+      Permanent: true
+    });
+
+    return this.cognitoClient.send(command);
+  }
+
+  adminUpdateUser(username: string, data: AdminUpdateUser) {
+    const command = new AdminUpdateUserAttributesCommand({
+      UserPoolId: this.userPoolId,
+      Username: username,
+      UserAttributes: [
+        {
+          Name: 'custom:pushToken',
+          Value: data.pushNotificationToken
+        },
+        {
+          Name: 'custom:phone',
+          Value: data.phone
+        },
+        {
+          Name: 'custom:age',
+          Value: data.age.toString()
+        }
+      ]
+    });
+
+    return this.cognitoClient.send(command);
   }
 }
