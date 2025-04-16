@@ -6,7 +6,7 @@ export interface AdminSetUserPassword {
 }
 
 export interface AdminUpdateUser {
-    operation: 'UpdateMetadata';
+    operation: 'UpdateUser';
     pushNotificationToken?: string;
     phone?: string
     age?: number

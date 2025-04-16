@@ -53,7 +53,7 @@ export class AppController {
     switch (data.operation) {
       case 'SetUserPassword':
         return this.appService.adminSetUserPassword(username, data.password);
-      case 'UpdateMetadata':
+      case 'UpdateUser':
         return this.appService.adminUpdateUser(username, data);
     }
   }
